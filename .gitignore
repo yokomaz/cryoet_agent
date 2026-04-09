@@ -11,3 +11,4 @@ plans/
 dist/
 build/
 *.egg-info/
+.env

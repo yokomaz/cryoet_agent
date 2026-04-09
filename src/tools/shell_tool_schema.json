@@ -1,0 +1,13 @@
+{
+  "type": "function",
+  "function":{
+    "name": "run_shell",
+    "description": "A tool for executing shell commands.",
+    "parameters": {
+      "properties": {
+        "command": "string"
+      }
+    },
+    "type": "object"
+  }
+}

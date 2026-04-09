@@ -1,24 +1,10 @@
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "cryoet-agent"
 version = "0.1.0"
-description = "Workspace-scoped CryoET planning agent with skill-based knowledge loading and local-model support."
+description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
+    "dotenv>=0.9.9",
+    "typer>=0.24.1",
 ]
-
-[project.scripts]
-cryoet-agent = "cryoet_agent.cli:main"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-cryoet_agent = ["skills/builtins/*/SKILL.md"]
