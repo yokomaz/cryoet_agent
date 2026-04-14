@@ -7,7 +7,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "python": "/work/jpma/chenxr/cryoet_agent/.venv/bin/python"
+            "python": "./cryoet_agent/.venv/bin/python"
         }
     ]
 }

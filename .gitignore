@@ -26,6 +26,7 @@ dataset/
 .venv/
 venv/
 ENV/
+.env
 
 # Logs
 *.log
