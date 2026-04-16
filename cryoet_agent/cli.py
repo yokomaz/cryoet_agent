@@ -48,7 +48,9 @@ def agent_loop(messages: list, client):
                 tool_args = json.loads(tool_call.function.arguments)
             except json.JSONDecodeError:
                 tool_args = {}
-            
+
+            print(f"> agent > {tool_name}({tool_args})")
+
             handler = TOOL_HANDLERS.get(tool_name)
             try:
                 if handler:
@@ -57,8 +59,7 @@ def agent_loop(messages: list, client):
                     output = f"Unknown tool: {tool_name}"
             except Exception as e:
                 output = f"Error: {e}"
-            
-            print(f"> agent > {tool_name}({tool_args})")
+            print(f"> agent > {tool_name}") #output: {output}")
             
             results.append({
                 "role": "tool",

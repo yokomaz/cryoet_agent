@@ -25,7 +25,6 @@ MODEL_ID = os.getenv("MODEL_ID")
 
 
 # Tool definitions for subagent
-# These are defined here to avoid circular imports
 BASE_TOOLS = [
     {
         "type": "function",
@@ -51,7 +50,7 @@ SUBAGENT_TOOLS = BASE_TOOLS + [
         "type": "function",
         "function": {
             "name": "pdf_parser",
-            "description": "Extract text content from a PDF file. Useful for parsing academic papers and method sections to extract data processing workflows.",
+            "description": "Extract text content from a PDF file. Returns the full text content of the PDF with page markers. Use this to read the methods section of a paper.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -69,7 +68,7 @@ SUBAGENT_TOOLS = BASE_TOOLS + [
 
 # Tool handlers available to subagent
 SUBAGENT_HANDLERS = {
-    "run_shell": lambda **kw: str(run_shell(kw["command"])),
+    "run_shell": lambda **kw: run_shell(kw["command"]),
     "pdf_parser": lambda **kw: pdf_parser_safe(kw["pdf_path"]),
 }
 
@@ -91,19 +90,23 @@ def run_subagent(prompt: str, max_iterations: int = 10) -> str:
     """
     Run a subagent with isolated context to parse PDF and extract workflow.
     
+    The subagent receives a prompt (containing PDF path), uses pdf_parser tool
+    to extract the PDF text, then analyzes it to generate a JSON workflow.
+    
     Args:
         prompt: The prompt containing the PDF path and instructions for the subagent.
-        max_iterations: Maximum number of tool use iterations
+                Example: "Extract the data processing workflow from /path/to/paper.pdf"
+        max_iterations: Maximum number of tool use iterations (safety limit)
         
     Returns:
         Extracted workflow as JSON string
     """
     if not API_KEY or not MODEL_ID:
-        raise ValueError("Missing API configuration")
+        raise ValueError("Missing API configuration. Check API_KEY and MODEL_ID environment variables.")
     
     client = OpenAI(api_key=API_KEY, base_url=BASE_URL)
     
-    # Fresh context for subagent
+    # Fresh context for subagent - only system prompt + user task
     messages = [
         {"role": "system", "content": SUBAGENT_PROMPT},
         {"role": "user", "content": prompt}
@@ -111,23 +114,22 @@ def run_subagent(prompt: str, max_iterations: int = 10) -> str:
     
     try:
         for iteration in range(max_iterations):
+            print(f"> subagent > Iteration {iteration + 1}")
             response = client.chat.completions.create(
                 model=MODEL_ID,
                 messages=messages,
                 tools=SUBAGENT_TOOLS,
-                max_tokens=1024,
+                max_tokens=4096,
             )
             
             message = response.choices[0].message
-            
-            # Add assistant response to messages
             messages.append({
-                "role": "assistant",
-                "content": message.content or "",
-                "tool_calls": message.tool_calls,
-            })
-            
-            # Check if done (no tool calls)
+            "role": "assistant",
+            "content": message.content or "",
+            "tool_calls": message.tool_calls,
+            **({"reasoning_content": message.reasoning_content} if hasattr(message, 'reasoning_content') and message.reasoning_content else {})
+        })
+            # Check if done (no tool calls - subagent has finished analysis)
             if not message.tool_calls:
                 content = message.content or "{}"
                 result = SubagentResult(
@@ -135,11 +137,10 @@ def run_subagent(prompt: str, max_iterations: int = 10) -> str:
                     iterations=iteration + 1,
                     success=True,
                 )
-                print(str(result))
-                exit()
                 return str(result)
             
-            # Execute tool calls
+            # Execute all tool calls and add results
+            tool_result = []
             for tool_call in message.tool_calls:
                 tool_name = tool_call.function.name
                 
@@ -149,41 +150,39 @@ def run_subagent(prompt: str, max_iterations: int = 10) -> str:
                     tool_args = {}
                 
                 # Execute tool handler
+                print(f"> subagent > {tool_name}({tool_args})")
+
                 handler = SUBAGENT_HANDLERS.get(tool_name)
                 if handler:
                     try:
                         output = handler(**tool_args)
                     except Exception as e:
-                        output = f"Error: {e}"
+                        output = f"Error executing {tool_name}: {e}"
                 else:
                     output = f"Unknown tool: {tool_name}"
-                
-                print(f"> subagent > {tool_name}({tool_args})")
-                
-                messages.append({
+
+                # Add tool result to messages
+                tool_result.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
-                    "content": str(output)[:50000],
+                    "content": str(output)
                 })
+                messages.extend(tool_result)
         
-        # Max iterations reached
+        # Max iterations reached without completion
         result = SubagentResult(
-            text="{}",
+            text=json.dumps({"error": "Max iterations exceeded without completing workflow extraction"}),
             iterations=max_iterations,
             success=False,
             error="Max iterations exceeded",
         )
-        print(f"======={str(result)}=========")
-        exit()
         return str(result)
         
     except Exception as e:
         result = SubagentResult(
-            text="{}",
+            text=json.dumps({"error": f"Subagent execution failed: {str(e)}"}),
             iterations=0,
             success=False,
             error=str(e),
         )
-    print(f"--------{str(result)}-------")
-    exit()
-    return str(result)
+        return str(result)

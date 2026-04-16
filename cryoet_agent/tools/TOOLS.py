@@ -4,9 +4,9 @@ from .run_subagent import run_subagent, SUBAGENT_TOOLS
 
 # Wrapper to adapt return values to string for tool handlers
 TOOL_HANDLERS = {
-    "run_shell": lambda **kw: str(run_shell(kw["command"])),
+    "run_shell": lambda **kw: run_shell(kw["command"]),
     "pdf_parser": lambda **kw: pdf_parser_safe(kw["pdf_path"]),
-    "run_subagent": lambda **kw: str(run_subagent(kw["prompt"]))
+    "run_subagent": lambda **kw: run_subagent(kw["prompt"])
 }
 
 # Base tools available to all agents
