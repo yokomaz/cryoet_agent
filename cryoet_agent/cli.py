@@ -10,6 +10,7 @@ from prompt_toolkit import prompt
 
 from cryoet_agent.prompts import SYSTEM_PROMPT
 from cryoet_agent.tools import TOOLS, TOOL_HANDLERS
+from cryoet_agent.tools.todo_list import get_todo_list
 
 load_dotenv(override=True)
 
@@ -17,6 +18,32 @@ load_dotenv(override=True)
 API_KEY = os.getenv("API_KEY")
 BASE_URL = os.getenv("BASE_URL")
 MODEL_ID = os.getenv("MODEL_ID")
+
+# Todo list related tools that should trigger a status print
+TODO_LIST_TOOLS = {'add_task', 'start_task', 'complete_task', 'fail_task', 'list_tasks'}
+
+
+def print_todo_status():
+    """Print current todo list status."""
+    todo = get_todo_list()
+    if not todo.tasks:
+        return
+    
+    print("\n📋 Current Todo List:")
+    print("-" * 50)
+    for task in todo.tasks:
+        status_icon = {
+            "pending": "⏳",
+            "in_progress": "🔄",
+            "completed": "✅",
+            "failed": "❌"
+        }.get(task.status, "❓")
+        print(f"  {status_icon} [{task.id}] {task.description} ({task.status})")
+    
+    summary = todo.get_summary()
+    print(f"\n  📊 Progress: {summary['completed']}/{summary['total']} ({summary['progress_percentage']}%)")
+    print("-" * 50)
+
 
 def agent_loop(messages: list, client):
     """Agent loop with tool execution support."""
@@ -59,7 +86,10 @@ def agent_loop(messages: list, client):
                     output = f"Unknown tool: {tool_name}"
             except Exception as e:
                 output = f"Error: {e}"
-            print(f"> agent > {tool_name}") #output: {output}")
+            
+            # Print todo list status after todo-related operations
+            if tool_name in TODO_LIST_TOOLS:
+                print_todo_status()
             
             results.append({
                 "role": "tool",

@@ -1,6 +1,13 @@
 {
   "workflow_name": "string",
   "paper_reference": "string",
+  "data_available": {
+    "data_type": "raw_frames | tilt_series | aligned_tilt_series | tomogram | particles | other",
+    "operation_stage": "motion_correction | alignment | ctf_estimation | ctf_correction | denoise | reconstruction | segmentation | subtomogram_averaging | other",
+    "format": "mrc | mrcs | tif | hdf | star | unknown",
+    "size": "Pixel size",
+    "notes": "string (optional)"
+  },
 
   "steps": [
     {
