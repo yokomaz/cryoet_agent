@@ -65,7 +65,7 @@ def agent_loop(messages: list, client):
         
         if not message.tool_calls:
             if message.content:
-                print(message.content)
+                print(f"Agent Final: {message.content}")
             return
         
         results = []

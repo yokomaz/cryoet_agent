@@ -1,5 +1,7 @@
 # WarpTools Motion Correction Reference
 
+> **Warp Version**: This reference is based on Warp v1.x (WarpTools). Parameters may differ in v2.x.
+
 ## Prerequisites
 
 Before running motion correction, the following preparations must be completed:
@@ -60,6 +62,17 @@ WarpTools fs_motion --settings <path_to.settings> [options]
 | `--range_max` | float | 10 | Maximum resolution in Ångström to consider in fit |
 | `--bfac` | float | -500 | Downweight higher spatial frequencies using a B-factor (Å²) |
 | `--grid` | string | (auto) | Motion model grid resolution as `XxYxT`, e.g., `5x5x40`; leave empty for auto |
+| `--dose` | float | 0 | Electron dose per frame (e⁻/Å²). If 0, uses the value from the settings file |
+| `--gain` | string | (from settings) | Path to gain reference file (overrides settings) |
+| `--defect` | string | (from settings) | Path to defect map file (overrides settings) |
+| `--eer_ngroups` | int | (from settings) | Number of EER frame groups (overrides settings) |
+
+#### Denoising parameters (optional, experimental)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `--denoise` | flag | false | Enable denoising during motion correction |
+| `--denoise_strength` | float | 1.0 | Denoising strength factor |
 
 #### Output control
 
@@ -190,6 +203,63 @@ WarpTools fs_motion \
   --out_averages
 ```
 where `movies.txt` contains one file path per line.
+
+---
+
+## cryo-ET Tilt Series Specifics
+
+### Key Differences from Single-Particle cryo-EM
+
+| Aspect | Single-Particle | cryo-ET Tilt Series |
+|--------|----------------|---------------------|
+| Dose per movie | Uniform across movies | Varies per tilt (accumulated dose) |
+| Grid model | `5x5x40` typical | `1x1x3` or `1x1x5` recommended |
+| Output needed | Aligned average (sum) | Aligned stack **or** per-frame metadata for reconstruction |
+| EER usage | Occasional | Common (space efficiency for many tilts) |
+
+### Generating Settings for Tilt Series
+
+```bash
+WarpTools create_settings \
+  --folder_data /data/tilt_series/ \
+  --folder_processing /data/processed/ \
+  --output tilt_series.settings \
+  --extension "*.tif" \
+  --angpix 1.35 \
+  --gain_path gain_ref.mrc \
+  --gain_flip_y \
+  --exposure 3.0 \
+  --eer_ngroups 40
+```
+
+Note: For tilt series, `--exposure` should be the **total dose across all tilts**, not per-tilt. Warp calculates per-tilt dose internally based on the number of tilts.
+
+### Recommended Command for Tilt Series Motion Correction
+
+```bash
+WarpTools fs_motion_and_ctf \
+  --settings tilt_series.settings \
+  --m_grid 1x1x3 \
+  --m_bfac -300 \
+  --c_grid 2x2x1 \
+  --c_range_max 7 \
+  --c_defocus_min 0.5 \
+  --c_defocus_max 8.0 \
+  --c_use_sum \
+  --out_averages \
+  --device_list 0 1 2 3 \
+  --perdevice 2
+```
+
+### cryo-ET Parameter Selection Guide
+
+| Parameter | Recommended for cryo-ET | Rationale |
+|-----------|------------------------|-----------|
+| `--m_grid` | `1x1x3` or `1x1x5` | Low per-tilt dose; too many spatial patches causes overfitting |
+| `--m_bfac` | `-300` (less aggressive) | Preserve high-res signal given already-low dose |
+| `--c_use_sum` | Enable | Improves CTF fit when per-tilt signal is weak |
+| `--c_range_min` | `50` (relaxed) | Low-dose tilts have limited high-res signal |
+| `--out_averages` | Enable | Needed for tilt series alignment input |
 
 ---
 

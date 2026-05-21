@@ -1,5 +1,7 @@
 # MotionCor3 Reference
 
+> **Version**: This reference is based on MotionCor3 >= 1.5.x. Some features (e.g., improved batch buffer pool) require v1.5.2+.
+
 ## Overview
 
 MotionCor3 is a multi-GPU accelerated program for anisotropic beam-induced motion correction of cryo-EM and cryo-ET images. It is an improved implementation of MotionCor2 with integrated CTF (Contrast Transfer Function) estimation. MotionCor3 performs iterative, patch-based motion detection combined with spatial/temporal constraints and dose weighting.
@@ -208,6 +210,81 @@ MotionCor3 \
   -InAln alignment_folder/ \
   -Gpu 0
 ```
+
+### Example 6: cryo-ET tilt series with dose weighting + aligned stack
+```bash
+MotionCor3 \
+  -InMrc /data/tilt_series/ \
+  -OutMrc /data/corrected/ \
+  -Serial 1 \
+  -InSuffix .mrc \
+  -Gain gain_ref.mrc \
+  -PixSize 1.35 \
+  -FmDose 0.05 \
+  -InitDose 0.0 \
+  -kV 300 \
+  -Tilt -60 3 \
+  -Patch 3 3 50 \
+  -OutStack 1 1 \
+  -SplitSum 1 \
+  -Gpu 0 1 2 3
+```
+Note: `-Tilt -60 3` means the tilt series started at -60° with a 3° step. MotionCor3 uses this to compute per-tilt accumulated dose. `-FmDose 0.05` is the dose per frame in e⁻/Å².
+
+### Example 7: cryo-ET tilt series with CTF estimation
+```bash
+MotionCor3 \
+  -InMrc movie.mrc \
+  -OutMrc corrected.mrc \
+  -Gain gain_ref.mrc \
+  -PixSize 1.35 \
+  -FmDose 0.05 \
+  -kV 300 \
+  -Tilt -60 3 \
+  -Cs 2.7 \
+  -AmpCont 0.07 \
+  -Patch 3 3 50 \
+  -OutStack 1 1 \
+  -Gpu 0
+```
+
+---
+
+## cryo-ET Tilt Series Specifics
+
+### Key Differences from Single-Particle cryo-EM
+
+| Aspect | Single-Particle | cryo-ET Tilt Series |
+|--------|----------------|---------------------|
+| Dose per movie | Uniform (same dose per movie) | Varies per tilt (accumulated dose from prior tilts) |
+| `-Tilt` parameter | Not used | **Required** for correct dose weighting |
+| `-Patch` | `5 5` typical | `3 3` with higher overlap (50%) recommended |
+| `-OutStack` | Optional | **Strongly recommended** (`-OutStack 1 1`) |
+| `-SplitSum` | Optional | Recommended for denoiser training |
+| EER | Rare | Common |
+
+### How `-Tilt` Works
+
+`-Tilt <start_angle> <step_angle>` tells MotionCor3 the acquisition geometry:
+- `start_angle`: The first tilt angle in the series (e.g., `-60` means starting at -60°)
+- `step_angle`: The angular step between consecutive tilts (e.g., `3` means 3° increments)
+
+MotionCor3 uses this to compute each image's initial dose as:
+```
+initial_dose_per_tilt = -InitDose + (tilt_index) × (frames_per_tilt) × (-FmDose)
+```
+
+### cryo-ET Parameter Selection Guide
+
+| Parameter | Recommended for cryo-ET | Rationale |
+|-----------|------------------------|-----------|
+| `-Patch` | `3 3 50` | Fewer patches + high overlap to avoid overfitting low-dose tilts |
+| `-Bft` | `300 100` (less aggressive global B-factor) | Preserve signal at high tilt angles |
+| `-Group` | `1 2` | Finer temporal sampling given few frames per tilt |
+| `-FmDose` | Per-frame dose (typically 0.03–0.08 e⁻/Å²) | Enables dose weighting; critical for cryo-ET |
+| `-Tilt` | Per acquisition geometry | Required for correct per-tilt dose accumulation |
+| `-OutStack` | `1 1` | Preserves aligned stack for tomogram reconstruction |
+| `-SplitSum` | `1` | Useful for downstream denoising |
 
 ## Output File Summary
 

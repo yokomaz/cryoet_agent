@@ -2,6 +2,7 @@ from .shell import run_shell
 from .pdf_parser import pdf_parser_safe
 from .run_subagent import run_subagent, SUBAGENT_TOOLS
 from .read_file import read_file, safe_path
+from .dataset_quality import assess_dataset, inspect_mrc
 from . import todo_list
 from cryoet_agent.skill_loader import SKILL_REGISTRY
 
@@ -37,6 +38,9 @@ TOOL_HANDLERS = {
     "read_skill": lambda **kw: read_skill(kw["skill_name"]),
     "list_skills": lambda **kw: list_skills(),
     "read_file": lambda **kw: read_file(kw["path"], kw.get("limit")),
+    # Dataset quality tools
+    "assess_dataset": lambda **kw: assess_dataset(kw["dataset_path"]),
+    "inspect_mrc": lambda **kw: inspect_mrc(kw["file_path"], kw.get("num_slices", 5)),
     # Todo list tools
     "add_task": lambda **kw: todo_list.add_task(kw["description"], kw.get("notes", "")),
     "start_task": lambda **kw: todo_list.start_task(kw["task_id"]),
@@ -81,8 +85,8 @@ BASE_TOOLS = [
                         "description": "Relative path to the file to read (relative to the working directory)"
                     },
                     "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Optional. If set, limits the number of lines read from the file (e.g., 100). If null, reads the entire file."
+                        "type": "integer",
+                        "description": "Optional. If set, limits the number of lines read from the file (e.g., 100). If omitted, reads the entire file."
                     }
                 },
                 "required": ["path"]
@@ -164,7 +168,8 @@ TODO_LIST_TOOLS = [
                         "type": "string",
                         "description": "Filter by status: 'all', 'pending', 'in_progress', 'completed', 'failed'. Default is 'all'."
                     }
-                }
+                },
+                "required": []
             }
         }
     },
@@ -185,6 +190,56 @@ TODO_LIST_TOOLS = [
         "function": {
             "name": "get_progress",
             "description": "Get overall progress summary showing completion statistics.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fail_task",
+            "description": "Mark a task as failed with an optional reason.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to mark as failed"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Optional reason for the failure"
+                    }
+                },
+                "required": ["task_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_task_details",
+            "description": "Get detailed information about a specific task.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "The ID of the task to get details for"
+                    }
+                },
+                "required": ["task_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "clear_completed_tasks",
+            "description": "Remove all completed tasks from the todo list.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -227,6 +282,56 @@ PARENT_TOOLS = BASE_TOOLS + [
                     }
                 },
                 "required": ["skill_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_skills",
+            "description": "List all available skills with their names and descriptions. Use this to discover what domain knowledge is available before reading specific skills.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "assess_dataset",
+            "description": "Assess the quality of a cryo-ET dataset directory. Reads tilt angles (.tlt/.rawtlt), MRC stack statistics (.st/.mrc), alignment transformations (.xf), and CTF estimation output to generate a comprehensive quality report covering tilt coverage, image statistics, alignment drift, and CTF quality.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dataset_path": {
+                        "type": "string",
+                        "description": "Path to the dataset directory containing .st/.mrc, .tlt/.rawtlt, .xf, and optional CTF output files."
+                    }
+                },
+                "required": ["dataset_path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "inspect_mrc",
+            "description": "Inspect a single MRC/ST file and return detailed header information plus per-slice statistics. Use this to examine individual tomograms or tilt series stacks in detail.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the .mrc or .st file to inspect."
+                    },
+                    "num_slices": {
+                        "type": "integer",
+                        "description": "Number of evenly-spaced slices to sample for statistics. Default is 5."
+                    }
+                },
+                "required": ["file_path"]
             }
         }
     }
